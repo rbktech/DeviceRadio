@@ -5,9 +5,11 @@
 #include <wx/atomic.h>
 #include <wx/stattext.h>
 
-#include <gpPanel.h>
-#include <gpLineLayer.h>
+#include <gpPanel/gpPanel.h>
+#include <gpPanel/gpLineLayer.h>
 #include <queue>
+
+#include <wx/timer.h>
 
 #include "sdrblunt.h"
 
@@ -17,6 +19,11 @@ class CMainFrame : public wxFrame
 {
 private:
     std::queue<Coords> mQueue;
+
+    enum USER_ID : wxWindowID
+    {
+        EVT_TIMER_PROCESS = wxID_HIGHEST + 1
+    };
 
     wxAtomicInt mAppProcess;
 
@@ -39,6 +46,12 @@ private:
     int InitPlot();
 
     void RefreshData(const Coords* coords);
+
+    void OnTimerProcess(wxTimerEvent& event);
+
+    wxTimer m_timer;
+
+    DECLARE_EVENT_TABLE();
 
 public:
     explicit CMainFrame(wxWindow* parent = nullptr);

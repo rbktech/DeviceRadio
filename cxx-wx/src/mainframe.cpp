@@ -8,9 +8,14 @@
 #define MAIN_THEME wxColor(0x40, 0x40, 0x40)
 #define SUB_THEME wxColor(0x60, 0x60, 0x60)
 
+BEGIN_EVENT_TABLE(CMainFrame, wxFrame)
+EVT_TIMER(EVT_TIMER_PROCESS, CMainFrame::OnTimerProcess)
+END_EVENT_TABLE()
+
 CMainFrame::CMainFrame(wxWindow* parent)
     : wxFrame(parent, wxID_ANY, wxT("Device Radio"))
     , mAppProcess(1)
+    , m_timer(this, EVT_TIMER_PROCESS)
 {
     SetIcon(wxICON(radio));
     this->SetBackgroundColour(*wxWHITE);
@@ -49,12 +54,19 @@ CMainFrame::CMainFrame(wxWindow* parent)
     Bind(wxEVT_BUTTON, &CMainFrame::OnLink, this, btnLink->GetId());
 
     this->CallAfter(&CMainFrame::OnProcess);
+
+    m_timer.Start(1000);
 }
 
 CMainFrame::~CMainFrame()
 {
     mSDRBlunt.close();
     mGraphPanel->DelLayer(mLineLayer);
+}
+
+void CMainFrame::OnTimerProcess(wxTimerEvent& event)
+{
+    std::cout << "timer process" << std::endl;
 }
 
 void CMainFrame::OnClose(wxCloseEvent& WXUNUSED(event))
@@ -122,13 +134,14 @@ void CMainFrame::OnProcess()
 
         result = mSDRBlunt.recv(coords);
         if(result == 0) {
-            mSeriesData->DataClear();
 
-            for(auto & coord : coords)
-                mSeriesData->DataPush(coord.x, coord.y);
+            // mSeriesData->DataClear();
 
-            mLineLayer->RefreshChart();
-            mGraphPanel->Refresh();
+            // for(auto & coord : coords)
+                // mSeriesData->DataPush(coord.x, coord.y);
+
+            // mLineLayer->RefreshChart();
+            // mGraphPanel->Refresh();
         }
 
         const std::chrono::system_clock::time_point end = std::chrono::system_clock::now();
