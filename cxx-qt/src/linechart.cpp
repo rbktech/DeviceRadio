@@ -2,46 +2,98 @@
 
 #include <QRandomGenerator>
 
-CLineChart::CLineChart()
-    : QChart()
-    , m_series(nullptr)
+#define MAX_X 100
+
+CLineChart::CLineChart(QWidget* parent)
+    : QChartView(parent)
+    , m_series_red(nullptr)
+    , m_series_green(nullptr)
     , m_axisX(new QValueAxis())
     , m_axisY(new QValueAxis())
     , m_step(0)
-// m_x(5),
-// m_y(1)
+    , m_x(0)
+    , m_y(1)
 {
-    this->legend()->hide();
-    this->createDefaultAxes();
-    this->setTitle("Simple line chart example");
-    // this->setAnimationOptions(QChart::AllAnimations);
+    m_chart = new QChart();
+    m_chart->legend()->hide();
+    m_chart->createDefaultAxes();
+    m_chart->setTitle("Simple line chart example");
+    // m_chart->setAnimationOptions(QChart::AllAnimations);
 
-    m_series = new QSplineSeries(this);
-    QPen green(Qt::red);
+    // this->setRenderHint(QPainter::Antialiasing);
+    this->setChart(m_chart);
+
+    m_series_red = new QSplineSeries(this);
+    QPen red(Qt::red);
+    red.setWidth(3);
+    m_series_red->setPen(red);
+    m_series_red->append(m_x, m_y);
+
+    m_series_green = new QSplineSeries(this);
+    QPen green(Qt::green);
     green.setWidth(3);
-    m_series->setPen(green);
-    // m_series->append(m_x, m_y);
+    m_series_green->setPen(green);
+    m_series_green->append(m_x, m_y);
 
-    addSeries(m_series);
+    m_chart->addSeries(m_series_red);
+    m_chart->addSeries(m_series_green);
 
-    addAxis(m_axisX, Qt::AlignBottom);
-    addAxis(m_axisY, Qt::AlignLeft);
-    m_series->attachAxis(m_axisX);
-    m_series->attachAxis(m_axisY);
+    m_chart->addAxis(m_axisX, Qt::AlignBottom);
+    m_chart->addAxis(m_axisY, Qt::AlignLeft);
+
     m_axisX->setTickCount(5);
-    m_axisX->setRange(0, 1024);
-    m_axisY->setRange(110, 150);
+    m_axisX->setRange(0, MAX_X);
+    m_axisY->setRange(-500, 500);
+
+    m_series_red->attachAxis(m_axisX);
+    m_series_red->attachAxis(m_axisY);
+
+    m_series_green->attachAxis(m_axisX);
+    m_series_green->attachAxis(m_axisY);
 }
 
-void CLineChart::WriteBuffer(uint8_t* buffer, const int& size)
+void CLineChart::WriteBuffer(const uint8_t* buffer, const int& size)
 {
-    qreal x = plotArea().width() / m_axisX->tickCount();
-    qreal y = (m_axisX->max() - m_axisX->min()) / m_axisX->tickCount();
-    // m_x += y;
-    // m_y = QRandomGenerator::global()->bounded(5) - 2.5;
+    (void*)buffer;
+    (void)size;
+}
 
-    m_series->clear();
-    for(int i = 0; i < 1024; i++) {
-        m_series->append(i, buffer[i]);
+void CLineChart::Clear()
+{
+    m_x = 0;
+    m_series_red->clear();
+    m_series_green->clear();
+}
+
+void CLineChart::AddValue(const qreal& xx, const qreal& yy, const Qt::GlobalColor& color)
+{
+    (void)xx;
+
+    qreal x = m_chart->plotArea().width() / m_axisX->tickCount();
+    qreal y = (m_axisX->max() - m_axisX->min()) / m_axisX->tickCount();
+    m_x++; //  += y;
+    m_y = yy;
+
+    switch(color) {
+        case Qt::red:
+            m_series_red->append(m_x, m_y);
+            break;
+        case Qt::green:
+            m_series_green->append(m_x, m_y);
+            break;
+        default:
+            break;
     }
+
+    if(m_x > MAX_X)
+        Clear();
+
+    // m_chart->scroll(x, 0);
+    // if (m_x == 100)
+    // m_timer.stop();
+}
+
+QSize CLineChart::sizeHint() const
+{
+    return this->size();
 }

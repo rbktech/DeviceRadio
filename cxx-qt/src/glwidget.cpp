@@ -1,131 +1,68 @@
 #include "glwidget.h"
 
-// #include <GL/glu.h>
-// #include <GL/glew.h>
-
 #include <QMouseEvent>
-#include <QMutexLocker>
 
-#include <cmath>
-
-#include <core/error.h>
-#include <core/initialization.h>
-#include <graph/graph.h>
+#include <iostream>
 
 #include "rtlsdr.h"
 
 #define SIZE_MAX_QUEUE 100
-#define STEP 0.1f
+
+#define DRAW_X (n + 0)
+#define DRAW_Y (n + 1)
+#define DRAW_Z (n + 2)
 
 CGLWidget::CGLWidget(QWidget* parent)
     : QOpenGLWidget(parent)
-    , mInit(0)
-    , m_fovy(0.0)
-    , m_aspect(0.0)
-    , m_zNear(0.0)
-    , m_zFar(0.0)
-    , m_x_camera(-150.0f)
-    , m_y_camera(-100.0f)
-    , m_z_camera(-500.0f)
+    , mMouseButton(Qt::NoButton)
 {
+    connect(this, &CGLWidget::mouseMoveEvent, this, &CGLWidget::OnMouseMoveEvent);
+    connect(this, &CGLWidget::wheelEvent, this, &CGLWidget::OnMouseWheelEvent);
+
     this->setMouseTracking(true);
 }
 
 CGLWidget::~CGLWidget()
 {
     while(mQueue.isEmpty() == false) {
+        std::cout << "";
+    }
 
-        core::CVAO* vao = mQueue.front();
-        if(vao != nullptr) {
-            delete vao;
-            vao = nullptr;
+    for(auto& item : mMap) {
+        if(item != nullptr) {
+            delete item;
+            item = nullptr;
         }
-        mQueue.pop_front();
     }
 }
 
 void CGLWidget::paintGL()
 {
-    std::lock_guard<std::mutex> lck(mMutex);
+    for(auto& item : mMap)
+        if(item != nullptr)
+            mQueue.push_back(*item);
 
-    // DrawScene();
-    e(glEnable(GL_DEPTH_TEST));
-    e(glPolygonMode(GL_FRONT_AND_BACK, GL_LINE));
-    e(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
-    e(glClearColor(0.2f, 0.2f, 0.2f, 0.0f));
-
-    // SettingView
-    e(glMatrixMode(GL_PROJECTION));
-    e(glLoadIdentity());
-    // e(gluPerspective(m_fovy, m_aspect, m_zNear, m_zFar));
-    graph::Perspective(m_fovy, m_aspect, m_zNear, m_zFar);
-
-    // DrawObject();
-    e(glMatrixMode(GL_MODELVIEW));
-
-    // DrawCamera();
-    e(glLoadIdentity());
-    e(glTranslatef(m_x_camera, m_y_camera, m_z_camera));
-    e(glRotatef(0.0f, 0.0f, 0.0f, 0.0f));
-
-    // DrawObject();
-    if(mInit == 1) {
-        for(auto& vbo : mQueue)
-            if(vbo != nullptr)
-                vbo->Draw();
+    while(mQueue.isEmpty() == false) {
+        int item = mQueue.front();
+        std::cout << item << std::endl;
+        mQueue.pop_front();
     }
+
+    mGraph.Draw();
 }
 
 void CGLWidget::initializeGL()
 {
-    GLenum result = 0;
-    core::Init();
-    if(result == 0) { // GLEW_OK
-        mInit = 1;
-
-        // InitScene();
-        int maxVertexAttribs;
-        glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &maxVertexAttribs);
-
-        // InitObject();
-
-        float color[3] = { 1.0f, 0.0f, 0.0f };
-        float line[SIZE_RTL_SDR_BUFFER * 5] = { 0 };
-
-        float x = 0.0f;
-        for(int i = 0, n = 0; i < SIZE_RTL_SDR_BUFFER; i++, n = i * 5) {
-            line[n + 0] = (x += 0.01);
-            line[n + 1] = 50;
-            line[n + 2] = color[0];
-            line[n + 3] = color[1];
-            line[n + 4] = color[2];
-        }
-
-        core::CVAOBuffer* vao_buffer = nullptr;
-        vao_buffer = new core::CVAOBuffer();
-        vao_buffer->SetDrawParams(GL_LINE_STRIP, 0, SIZE_RTL_SDR_BUFFER);
-        vao_buffer->SetBuffer(nullptr, sizeof(line) / sizeof(line[0]));
-        vao_buffer->EnableVertex(2, 5, 0);
-        vao_buffer->EnableColor(3, 5, 2);
-
-        mQueue.push_back(vao_buffer);
-    }
+    mGraph.Init(SCREEN_WIDTH, SCREEN_HEIGHT);
+    mGraph.SetBackground(0x00, 0x31, 0x53);
+    mGraph.SetGrid(SIZE_RTL_SDR_BUFFER, 500);
+    mGraph.Create("frequency");
+    mGraph.Set("frequency", glm::vec3 { 0.0f, 1.0f, 0.0f });
 }
 
-void CGLWidget::resizeEvent(QResizeEvent* event)
+void CGLWidget::resizeGL(int w, int h)
 {
-    QOpenGLWidget::resizeEvent(event);
-
-    QSize size = event->size();
-
-    GLfloat w = (GLfloat)size.width();
-    GLfloat h = (GLfloat)size.height();
-
-    GLfloat aspect = w / h;
-
-    SetPerspective(30.0f, aspect, 0.1f, 1000.0f);
-
-    glViewport(0, 0, size.width(), size.height());
+    mGraph.SetSize(w, h);
 }
 
 QSize CGLWidget::sizeHint() const
@@ -133,104 +70,136 @@ QSize CGLWidget::sizeHint() const
     return this->size();
 }
 
-void CGLWidget::OnUp()
+void CGLWidget::OnUp(const float& step)
 {
-    m_y_camera -= STEP * m_z_camera;
+    (void)step;
     this->update();
 }
 
-void CGLWidget::OnDown()
+void CGLWidget::OnDown(const float& step)
 {
-    m_y_camera += STEP * m_z_camera;
+    (void)step;
     this->update();
 }
 
-void CGLWidget::OnLeft()
+void CGLWidget::OnLeft(const float& step)
 {
-    m_x_camera += STEP * m_z_camera;
+    (void)step;
     this->update();
 }
 
-void CGLWidget::OnRight()
+void CGLWidget::OnRight(const float& step)
 {
-    m_x_camera -= STEP * m_z_camera;
+    (void)step;
     this->update();
 }
 
-void CGLWidget::OnPlus()
+void CGLWidget::OnPlus(const float& step)
 {
-    m_z_camera += STEP;
+    (void)step;
     this->update();
 }
 
-void CGLWidget::OnMinus()
+void CGLWidget::OnMinus(const float& step)
 {
-    m_z_camera -= STEP;
+    (void)step;
     this->update();
 }
 
 void CGLWidget::mousePressEvent(QMouseEvent* e)
 {
+    mMouseButton |= e->button();
 }
 
 void CGLWidget::mouseReleaseEvent(QMouseEvent* e)
 {
+    mMouseButton &= ~(e->button());
 }
 
-void CGLWidget::SetPerspective(const GLdouble& fovy,
-    const GLdouble& aspect,
-    const GLdouble& zNear,
-    const GLdouble& zFar)
+bool CGLWidget::IsMousePresses(const QFlags<Qt::MouseButton>& mouseButton)
 {
-    m_fovy = fovy;
-    m_aspect = aspect;
-    m_zNear = zNear;
-    m_zFar = zFar;
+    return mMouseButton & mouseButton;
 }
 
-void CGLWidget::CalculatePosition(GLint& x_mouse, GLint& y_mouse, GLdouble& x_real, GLdouble& y_real)
+void CGLWidget::WriteBuffer(const RTL_DATA* data, const int& size)
 {
-    QSize wSize = this->size();
-
-    int w = wSize.width();
-    int h = wSize.height();
-
-    int w2 = w >> 1;
-    int h2 = h >> 1;
-
-    y_mouse = h - y_mouse;
-
-    double K = h2 / (m_z_camera * std::tan(m_fovy / 2 * M_PI / 180.0));
-
-    x_real = (x_mouse - w2 + m_x_camera * K) / K;
-    y_real = (y_mouse - h2 + m_y_camera * K) / K;
-}
-
-void CGLWidget::WriteBuffer(const uint8_t* data, const int& size)
-{
-    float color[3] = { 0.0f, 1.0f, 0.0f };
-    float* buffer = new float[size * 5];
+    float* buffer = new float[size * 3];
 
     float x = 0.0f;
-    for(int i = 0, n = 0; i < size; i++, n = i * 5) {
-        buffer[n + 0] = (x += 0.01);
-        buffer[n + 1] = data[i];
-        buffer[n + 2] = color[0];
-        buffer[n + 3] = color[1];
-        buffer[n + 4] = color[2];
+    for(int i = 0, n = 0; i < size; i++, n = i * 3) {
+        buffer[DRAW_X] = (x += 0.01);
+        buffer[DRAW_Y] = data[i];
+        buffer[DRAW_Z] = 0.0f;
     }
 
-    std::lock_guard<std::mutex> lck(mMutex);
+    this->makeCurrent();
 
-    if(mQueue.isEmpty() == false) {
+    mGraph.Set("frequency", buffer, size * 3);
 
-        core::CVAOBuffer* vao = mQueue.front();
-        if(vao != nullptr) {
-            vao->SetBuffer(buffer, size * 5);
-        }
-    }
-
-    delete[] buffer;
+    this->doneCurrent();
 
     this->update();
+
+    delete[] buffer;
+}
+
+void CGLWidget::OnMouseWheelEvent(QWheelEvent* event)
+{
+    QPoint numPixels = event->pixelDelta();
+    QPoint numDegrees = event->angleDelta() / 8;
+
+    if(!numPixels.isNull() == true) {
+    } else if(!numDegrees.isNull() == true) {
+        QPoint numSteps = numDegrees / 15;
+        mGraph.Scroll(numSteps.x(), numSteps.y());
+        this->update();
+    }
+
+    event->accept();
+}
+
+void CGLWidget::OnMouseMoveEvent(QMouseEvent* event)
+{
+    QWidget::mouseMoveEvent(event);
+
+    if(event != nullptr) {
+
+        if(event->type() == QEvent::MouseMove) {
+
+            QMouseEvent* mouseEvent = dynamic_cast<QMouseEvent*>(event);
+            if(mouseEvent != nullptr) {
+
+                QPoint point = mouseEvent->pos();
+
+                float x_real = 0.0f;
+                float y_real = 0.0f;
+
+                const int x_mouse = point.x();
+                const int y_mouse = point.y();
+
+                mGraph.Cursor(x_mouse, y_mouse, x_real, y_real);
+
+                this->setProperty("cursor_x", x_real);
+                this->setProperty("cursor_y", y_real);
+
+                switch(mMouseButton) {
+
+                    case Qt::LeftButton: {
+                        mGraph.Move(mXPosition - x_mouse, y_mouse - mYPosition);
+                        break;
+                    }
+                    case Qt::RightButton:
+                    case Qt::MiddleButton:
+                    case Qt::NoButton: {
+                        break;
+                    }
+                }
+
+                this->update();
+
+                mXPosition = x_mouse;
+                mYPosition = y_mouse;
+            }
+        }
+    }
 }

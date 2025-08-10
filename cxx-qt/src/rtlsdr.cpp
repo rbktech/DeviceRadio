@@ -87,6 +87,11 @@ int CRtlSdr::SetBandwidth(const uint32_t& bw)
     return rtlsdr_set_tuner_bandwidth(mDevice, bw);
 }
 
+int CRtlSdr::SetAutoGain()
+{
+    return rtlsdr_set_tuner_gain_mode(mDevice, 0);
+}
+
 int CRtlSdr::ResetBuffer()
 {
     return rtlsdr_reset_buffer(mDevice);
@@ -95,7 +100,7 @@ int CRtlSdr::ResetBuffer()
 void CRtlSdr::loop()
 {
     int result = 0;
-    uint8_t* buffer = nullptr;
+    RTL_DATA* buffer = nullptr;
     int nRead = 0;
 
     while(mDevice != nullptr) {
@@ -108,16 +113,14 @@ void CRtlSdr::loop()
 
             if(mQueue.size() < SIZE_MAX_QUEUE) {
 
-                buffer = new uint8_t[SIZE_RTL_SDR_BUFFER];
+                buffer = new RTL_DATA[SIZE_RTL_SDR_BUFFER];
 
-                std::cout << "Read... ";
                 result = rtlsdr_read_sync(mDevice, buffer, SIZE_RTL_SDR_BUFFER, &nRead);
                 if(result == 0 && nRead == SIZE_RTL_SDR_BUFFER) {
-                    std::cout << "success: size: " << nRead << std::endl;
                     mQueue.push(buffer);
                 } else {
                     delete[] buffer;
-                    std::cout << "error: " << result;
+                    std::cout << "Read... error: " << result;
                     break;
                 }
             }
@@ -131,15 +134,15 @@ size_t CRtlSdr::GetSizeQueue()
     return mQueue.size();
 }
 
-int CRtlSdr::ReadBuffer(uint8_t* data)
+int CRtlSdr::ReadBuffer(RTL_DATA* data)
 {
     std::lock_guard<std::mutex> lck(mMutex);
 
     if(mQueue.empty() == false) {
 
-        uint8_t* buffer = mQueue.front();
+        RTL_DATA* buffer = mQueue.front();
 
-        memcpy(data, buffer, SIZE_RTL_SDR_BUFFER);
+        memcpy(data, buffer, SIZE_RTL_SDR_BUFFER * sizeof(RTL_DATA));
 
         delete[] buffer;
 

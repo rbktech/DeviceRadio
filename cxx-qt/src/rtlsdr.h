@@ -9,6 +9,8 @@
 
 #define SIZE_RTL_SDR_BUFFER 32768
 
+#define RTL_DATA uint8_t
+
 class CRtlSdr
 {
 private:
@@ -18,7 +20,7 @@ private:
     std::mutex mMutex;
     std::thread* mThread;
 
-    std::queue<uint8_t*> mQueue;
+    std::queue<RTL_DATA*> mQueue;
 
     void loop();
 
@@ -31,9 +33,10 @@ public:
     int ResetBuffer();
     int SetSampleRate(const uint32_t& rate);
     int SetCenterFrequency(const uint32_t& frequency);
+    int SetAutoGain();
     int SetBandwidth(const uint32_t& bw);
     int ShowDeviceParams(const int& index);
-    int ReadBuffer(uint8_t* data);
+    int ReadBuffer(RTL_DATA* data);
 
     size_t GetSizeQueue();
 };

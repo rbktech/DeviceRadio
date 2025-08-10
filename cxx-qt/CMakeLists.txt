@@ -12,18 +12,24 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(devEngine 0.1.0 REQUIRED)
+find_package(devEngine 0.2.0 REQUIRED)
 
 find_package(Qt5 5.15.2 REQUIRED COMPONENTS
         Core
         Gui
         Widgets
+        Charts
 )
 
 include_directories("src")
+include_directories("$ENV{GLM}/include")
+include_directories("$ENV{GLEW}/include")
 include_directories("$ENV{RTLSDR}/include")
 
 add_definitions(-DVERSION="${PROJECT_VERSION}")
+add_definitions(-DRESOURCES="${CMAKE_CURRENT_SOURCE_DIR}/res/")
+add_definitions(-DGLEW_STATIC)
+
 add_definitions(-DUNICODE)
 add_definitions(-D_UNICODE)
 add_definitions(-DWIN32)
@@ -34,7 +40,6 @@ add_definitions(-DQT_CORE_LIB)
 add_definitions(-DQT_GUI_LIB)
 add_definitions(-DQT_WIDGETS_LIB)
 add_definitions(-DQT_WIDGETS_LIB)
-add_definitions(-DGLEW_STATIC)
 
 #add_compile_options(-Wno-unknown-pragmas)
 
@@ -65,14 +70,16 @@ target_sources(${PROJECT_NAME} PRIVATE src/main.cpp)
 target_sources(${PROJECT_NAME} PRIVATE src/mainwindow.cpp)
 target_sources(${PROJECT_NAME} PRIVATE src/glwidget.cpp)
 target_sources(${PROJECT_NAME} PRIVATE src/rtlsdr.cpp)
+target_sources(${PROJECT_NAME} PRIVATE src/linechart.cpp)
 target_sources(${PROJECT_NAME} PRIVATE src/math/math_frequency.cpp)
 
 target_link_libraries(${PROJECT_NAME}
         Qt5::Core
         Qt5::Gui
         Qt5::Widgets
-        devCore
-        devGraph
+        Qt5::Charts
+        -Wl,--whole-archive devGraphd -Wl,--no-whole-archive
+        devCored
         glew32.a
         glu32
         opengl32
